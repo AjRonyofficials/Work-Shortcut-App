@@ -385,6 +385,24 @@ fun SettingsSection(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        Text("Background Data Caching", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Turn OFF to prioritize battery savings over instant data access in 2FA & Proxy", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = state.backgroundDataCaching,
+                        onCheckedChange = { OverlayStateManager.toggleBackgroundDataCaching(context) },
+                        modifier = Modifier.testTag("bg_data_caching_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text("Vibration Alert on Duplicate", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Text("Haptic pulse when same text is pasted twice into Excel columns", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

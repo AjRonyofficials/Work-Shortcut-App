@@ -73,7 +73,8 @@ data class OverlayUiState(
     val vibrationEnabled: Boolean = true,
     val lastGeneratedName: String = "",
     val selectedClearDataApps: List<com.example.util.AppInfoItem> = emptyList(),
-    val isClearDataOverlayExpanded: Boolean = false
+    val isClearDataOverlayExpanded: Boolean = false,
+    val backgroundDataCaching: Boolean = true
 )
 
 object OverlayStateManager {
@@ -128,6 +129,8 @@ object OverlayStateManager {
                 )
             }
 
+            val bgDataCaching = p.getBoolean("bg_data_caching", true)
+
             _uiState.update {
                 it.copy(
                     selectedCountry = country,
@@ -142,6 +145,7 @@ object OverlayStateManager {
                     twoFactorKey = saved2faKey,
                     draftRow = initialDraft,
                     selectedClearDataApps = loadedApps,
+                    backgroundDataCaching = bgDataCaching,
                     proxyState = it.proxyState.copy(
                         host = proxyHost,
                         port = proxyPort,
@@ -154,6 +158,25 @@ object OverlayStateManager {
 
         startTotpTicker()
         startPeriodicPingTester()
+        com.example.worker.BatteryEfficientProxyWorker.schedule(context)
+        com.example.worker.AutomatedCacheCleanerWorker.schedule(context)
+    }
+
+    fun toggleBackgroundDataCaching(context: Context? = null) {
+        val current = _uiState.value.backgroundDataCaching
+        val updated = !current
+        _uiState.update { it.copy(backgroundDataCaching = updated) }
+        prefs?.edit()?.putBoolean("bg_data_caching", updated)?.apply()
+        context?.let { ctx ->
+            if (updated) {
+                com.example.worker.BatteryEfficientProxyWorker.schedule(ctx)
+                com.example.worker.AutomatedCacheCleanerWorker.schedule(ctx)
+                Toast.makeText(ctx, "Background caching enabled", Toast.LENGTH_SHORT).show()
+            } else {
+                com.example.worker.BatteryEfficientProxyWorker.cancel(ctx)
+                Toast.makeText(ctx, "Battery savings mode: background caching off", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun setOverlayActive(active: Boolean) {
