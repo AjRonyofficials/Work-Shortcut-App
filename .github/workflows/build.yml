@@ -22,15 +22,17 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build Debug APK
+        env:
+          JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: |
           if [ ! -f "./gradlew" ]; then
             gradle wrapper || true
           fi
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleDebug -Djava.awt.headless=true --no-daemon --stacktrace
           else
-            gradle assembleDebug --no-daemon --stacktrace
+            gradle assembleDebug -Djava.awt.headless=true --no-daemon --stacktrace
           fi
 
       - name: Upload APK
