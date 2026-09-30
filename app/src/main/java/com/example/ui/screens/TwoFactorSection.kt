@@ -269,11 +269,7 @@ fun TwoFactorSection(
                         // Paste from clipboard button
                         Button(
                             onClick = {
-                                val clip = ClipboardHelper.getFromClipboard(context)
-                                if (!clip.isNullOrEmpty()) {
-                                    inputKey = clip
-                                    OverlayStateManager.setTwoFactorKey(clip, autoGenerateAndCopy = context)
-                                }
+                                OverlayStateManager.triggerOverlay2FaPaste(context)
                             },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier

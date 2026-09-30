@@ -1,54 +1,32 @@
 package com.example.ui.overlay
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandIn
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.TableChart
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,718 +36,517 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.service.OverlayStateManager
 import com.example.service.OverlayUiState
-import com.example.ui.components.TotpCountdownRing
-import com.example.ui.theme.AlertRed
-import com.example.ui.theme.BrandAmber
-import com.example.ui.theme.BrandBlue
-import com.example.ui.theme.BrandGreen
-import com.example.ui.theme.BrandRose
-import com.example.ui.theme.BrandSky
-import com.example.ui.theme.BrandTeal
 import com.example.util.ClipboardHelper
-import com.example.util.NameGenerator
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+/**
+ * Ultra-Premium, Glassmorphic Floating Overlay UI:
+ * 1. Gorgeous frosted dark sapphire glass chassis dock with glowing cyber border.
+ * 2. 3D tactile glossy buttons with icons, multi-stop depth gradients & specular highlights.
+ * 3. In-place operations (no dragging into main app).
+ * 4. Tap app to open, Press & Hold (Long-press) to instantly auto-close!
+ * 5. Proxy country/IP/time pill appears strictly when proxy is actively connected.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FloatingOverlayWindowContent(
     state: OverlayUiState,
     onDragStart: (Float, Float) -> Unit = { _, _ -> },
     onDragDelta: (Float, Float) -> Unit = { _, _ -> },
-    onToggleExpand: () -> Unit,
-    onCloseOverlay: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onToggleExpand: () -> Unit = {},
+    onCloseOverlay: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val bubbleDp = state.bubbleSize.dpSize.dp
+    val isLeft = state.isDockedLeft
 
-    Column(
-        modifier = modifier
-            .testTag("floating_overlay_root"),
-        horizontalAlignment = Alignment.Start
-    ) {
-        // The Messenger-style Floating Bubble (Chathead)
-        Box(
-            modifier = Modifier
-                .size(bubbleDp)
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { offset -> onDragStart(offset.x, offset.y) },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            onDragDelta(dragAmount.x, dragAmount.y)
-                        }
-                    )
-                }
-                .shadow(10.dp, CircleShape)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(BrandSky, BrandBlue)
-                    )
-                )
-                .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape)
-                .clickable { onToggleExpand() }
-                .testTag("floating_bubble_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Bolt,
-                contentDescription = "Work Shortcut Overlay",
-                tint = Color.White,
-                modifier = Modifier.size(bubbleDp * 0.52f)
-            )
+    // Dock chassis shape (curved outer corners)
+    val dockChassisShape = if (isLeft) {
+        RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 16.dp, bottomEnd = 16.dp)
+    } else {
+        RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp, topEnd = 0.dp, bottomEnd = 0.dp)
+    }
 
-            // Small active indicator dot for proxy
-            if (state.proxyState.isConnected) {
-                Box(
-                    modifier = Modifier
-                        .size(bubbleDp * 0.25f)
-                        .align(Alignment.BottomEnd)
-                        .clip(CircleShape)
-                        .background(BrandGreen)
-                        .border(1.5.dp, Color.White, CircleShape)
+    // Individual button capsule shape
+    val tabShape = RoundedCornerShape(10.dp)
+
+    // Multi-stop 3D Depth Gradients for Glossy Tactile Buttons
+    val gradProxy = Brush.verticalGradient(
+        listOf(Color(0xFF40C4FF), Color(0xFF0091EA), Color(0xFF01579B))
+    )
+    val gradName = Brush.verticalGradient(
+        listOf(Color(0xFF69F0AE), Color(0xFF00C853), Color(0xFF1B5E20))
+    )
+    val gradDual = Brush.verticalGradient(
+        listOf(Color(0xFFFFB74D), Color(0xFFFF6D00), Color(0xFFE65100))
+    )
+    val gradFb = Brush.verticalGradient(
+        listOf(Color(0xFF82B1FF), Color(0xFF1E88E5), Color(0xFF0D47A1))
+    )
+    val gradColC = Brush.verticalGradient(
+        listOf(Color(0xFFEA80FC), Color(0xFFAA00FF), Color(0xFF4A148C))
+    )
+    val grad2Fa = Brush.verticalGradient(
+        listOf(Color(0xFFFF5252), Color(0xFFD50000), Color(0xFFB71C1C))
+    )
+    val gradClean = Brush.verticalGradient(
+        listOf(Color(0xFF18FFFF), Color(0xFF00B8D4), Color(0xFF006064))
+    )
+    val gradSwitch = Brush.verticalGradient(
+        listOf(Color(0xFF78909C), Color(0xFF37474F), Color(0xFF212121))
+    )
+    val gradClose = Brush.verticalGradient(
+        listOf(Color(0xFFFF5252), Color(0xFFC62828), Color(0xFF880E4F))
+    )
+
+    Box(
+        modifier = Modifier
+            .wrapContentSize()
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset -> onDragStart(offset.x, offset.y) },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDragDelta(dragAmount.x, dragAmount.y)
+                    }
                 )
             }
-        }
+            .testTag("floating_overlay_root")
+    ) {
+        if (state.isEdgeBarMinimized) {
+            // Main Floating Bubble with Proxy Info directly underneath (Messenger style!)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(Color(0xFF40C4FF), Color(0xFF1E88E5), Color(0xFF0D47A1))
+                            )
+                        )
+                        .border(
+                            1.5.dp,
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF80D8FF), Color(0xFF0091EA))
+                            ),
+                            CircleShape
+                        )
+                        .shadow(10.dp, CircleShape)
+                        .combinedClickable(
+                            onClick = { OverlayStateManager.toggleEdgeBarMinimized() },
+                            onLongClick = { OverlayStateManager.toggleDockSide() }
+                        )
+                        .testTag("floating_main_bubble")
+                ) {
+                    // Inner glowing core
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF2979FF), Color(0xFF1565C0))
+                                )
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "Work Shortcut",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Expanded Overlay Card showing the 4 sections in serial order
-        AnimatedVisibility(
-            visible = state.isOverlayExpanded,
-            enter = fadeIn() + expandIn(spring(stiffness = Spring.StiffnessMediumLow)),
-            exit = fadeOut() + shrinkOut(spring(stiffness = Spring.StiffnessMediumLow))
-        ) {
+                // Proxy status: ONLY shows when proxy is actively connected!
+                if (state.proxyState.isConnected) {
+                    ProxyInfoStatusPill(state = state)
+                }
+            }
+        } else {
+            // Elegant Frosted Dark Glass Dock Chassis / Container
             Surface(
+                shape = dockChassisShape,
+                color = Color.Transparent,
+                shadowElevation = 14.dp,
                 modifier = Modifier
-                    .widthIn(min = 280.dp, max = 340.dp)
-                    .shadow(16.dp, RoundedCornerShape(20.dp))
-                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                    .testTag("overlay_expanded_panel"),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
+                    .wrapContentSize()
+                    .clip(dockChassisShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xF20F1626),
+                                Color(0xEB131B2E),
+                                Color(0xF20B101C)
+                            )
+                        )
+                    )
+                    .border(
+                        1.5.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0x9900E5FF),
+                                Color(0x442979FF),
+                                Color(0x6600E5FF)
+                            )
+                        ),
+                        dockChassisShape
+                    )
             ) {
                 Column(
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    horizontalAlignment = if (isLeft) Alignment.Start else Alignment.End,
                     modifier = Modifier
-                        .padding(14.dp)
+                        .padding(horizontal = 7.dp, vertical = 8.dp)
+                        .testTag("floating_edge_tabs_column")
                 ) {
-                    // Header with title and collapse button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(BrandSky.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = null,
-                                    tint = BrandSky,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Work Shortcut",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Row {
-                            IconButton(
-                                onClick = onToggleExpand,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Collapse",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = DividerDefaults.color.copy(alpha = 0.4f)
+                    // Sleek Drag Grip Header Handle
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .width(28.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.35f))
                     )
 
-                    // ==========================================
-                    // 1. FIRST SECTION: Names [Country] (Tap to generate & copy)
-                    // ==========================================
-                    val countryOption = NameGenerator.getCountryOption(state.selectedCountry)
-                    val section1Title = "Names ${state.selectedCountry}"
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                    Surface(
-                        onClick = {
-                            OverlayStateManager.generateAndCopyRealtimeName(context)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("overlay_section_1_name"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = BrandBlue.copy(alpha = 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.4f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = countryOption.flag,
-                                    fontSize = 18.sp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = section1Title,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = if (state.lastGeneratedName.isNotEmpty())
-                                            "${state.lastGeneratedName} (Auto-Copied)"
-                                        else
-                                            "Auto generates & copies to keyboard",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Copy Name",
-                                tint = BrandBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // ==========================================
-                    // 2. SECOND SECTION: Excel Column Collector & Duplicate Detector
-                    // ==========================================
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                            .padding(10.dp)
-                            .testTag("overlay_section_2_excel")
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.TableChart,
-                                    contentDescription = null,
-                                    tint = BrandTeal,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Excel Columns",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-
-                            // Copy All Button
-                            Surface(
-                                onClick = {
-                                    OverlayStateManager.copyAllColumns(context)
-                                },
-                                shape = RoundedCornerShape(6.dp),
-                                color = BrandTeal.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, BrandTeal.copy(alpha = 0.5f)),
-                                modifier = Modifier.testTag("overlay_copy_all_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = null,
-                                        tint = BrandTeal,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Copy All",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandTeal
-                                    )
-                                }
-                            }
-                        }
-
-                        // Duplicate warning badge if active
-                        if (state.draftRow.duplicateColumn != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(AlertRed.copy(alpha = 0.15f))
-                                    .border(1.dp, AlertRed, RoundedCornerShape(6.dp))
-                                    .padding(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Duplicate alert",
-                                    tint = AlertRed,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Duplicate! Same in Col ${state.draftRow.duplicateConflictWith}",
-                                    color = AlertRed,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Column buttons A, B, C, D...
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            val count = state.columnCount
-                            for (i in 0 until count) {
-                                val colKey = ('A' + i).toString()
-                                val colVal = state.draftRow.values[colKey] ?: ""
-                                val isDupe = state.draftRow.duplicateColumn == colKey
-                                val isFilled = colVal.isNotEmpty()
-
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = when {
-                                        isDupe -> AlertRed.copy(alpha = 0.25f)
-                                        isFilled -> BrandTeal.copy(alpha = 0.2f)
-                                        else -> MaterialTheme.colorScheme.surface
-                                    },
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        when {
-                                            isDupe -> AlertRed
-                                            isFilled -> BrandTeal
-                                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                                        }
-                                    ),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .combinedClickable(
-                                            onClick = {
-                                                // Tap: Auto-paste whatever is on user keyboard/clipboard into this column
-                                                OverlayStateManager.autoPasteClipboardToColumn(context, colKey)
-                                            },
-                                            onLongClick = {
-                                                // Long-press: Copy column value to clipboard
-                                                if (isFilled) {
-                                                    ClipboardHelper.copyToClipboard(
-                                                        context,
-                                                        colVal,
-                                                        "Col $colKey",
-                                                        "Copied Col $colKey: $colVal"
-                                                    )
-                                                }
-                                            }
-                                        )
-                                        .testTag("overlay_col_${colKey}")
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Col $colKey",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = when {
-                                                isDupe -> AlertRed
-                                                isFilled -> BrandTeal
-                                                else -> MaterialTheme.colorScheme.onSurface
-                                            }
-                                        )
-                                        if (isFilled) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "✓",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isDupe) AlertRed else BrandTeal
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Clear button
-                            Surface(
-                                onClick = {
-                                    OverlayStateManager.clearDraftRow()
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                            ) {
-                                Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                                    Icon(
-                                        imageVector = Icons.Default.DeleteSweep,
-                                        contentDescription = "Clear",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // ==========================================
-                    // 3. THIRD SECTION: Get 2FA (Auto pastes copied key & copies 6-digit code)
-                    // ==========================================
-                    val totp = state.totpResult
-                    Surface(
-                        onClick = {
-                            OverlayStateManager.processGet2FaFromClipboard(context)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("overlay_section_3_2fa"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = BrandAmber.copy(alpha = 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandAmber.copy(alpha = 0.4f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Key,
-                                    contentDescription = null,
-                                    tint = BrandAmber,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "Get 2FA",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandAmber
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "(Auto-paste & Copy)",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Text(
-                                        text = totp?.formattedCode ?: "Tap to Get 2FA Code",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            if (totp != null) {
-                                TotpCountdownRing(
-                                    remainingSeconds = totp.remainingSeconds,
-                                    progress = totp.progress,
-                                    size = 32.dp,
-                                    strokeWidth = 2.8.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.ContentPaste,
-                                    contentDescription = "Get 2FA",
-                                    tint = BrandAmber,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // ==========================================
-                    // 4. FOURTH SECTION: Super Proxy [Country] (Fast 1-click connect/disconnect, No Clipboard Copy)
-                    // ==========================================
-                    val proxy = state.proxyState
-                    val displayIp = if (proxy.ipAddress.isNotEmpty()) proxy.ipAddress else proxy.host
-
-                    Surface(
+                    // 1. PROXY TAB
+                    GlossyTactileButton(
+                        title = if (state.proxyState.isConnected) "Proxy ✓" else "Proxy",
+                        icon = Icons.Default.Bolt,
+                        brush = gradProxy,
+                        shape = tabShape,
                         onClick = {
                             OverlayStateManager.toggleProxyConnection(context)
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("overlay_section_4_proxy"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (proxy.isConnected) BrandGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (proxy.isConnected) BrandGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Security,
-                                    contentDescription = null,
-                                    tint = if (proxy.isConnected) BrandGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Proxy ${proxy.countryCode} [${if (proxy.isConnected) "Connected" else "Off"}]",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (proxy.isConnected) BrandGreen else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Country: ${proxy.countryCode} • Time: ${proxy.pingMs}ms • IP: $displayIp",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp,
-                                        maxLines = 1
-                                    )
-                                }
+                        testTag = "tab_proxy"
+                    )
+
+                    // 2. NAME GENERATOR TAB
+                    GlossyTactileButton(
+                        title = "Name",
+                        icon = Icons.Default.Person,
+                        brush = gradName,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.generateAndCopyRealtimeName(context)
+                        },
+                        testTag = "tab_name"
+                    )
+
+                    // 3. EXCEL COLUMN A
+                    val valA = state.draftRow.values["A"] ?: ""
+                    GlossyTactileButton(
+                        title = if (valA.isNotEmpty()) "Col A ✓" else "Col A",
+                        iconLabel = "📋",
+                        brush = gradDual,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.triggerOverlayColumnPaste(context, "A")
+                        },
+                        onLongClick = {
+                            if (valA.isNotEmpty()) {
+                                ClipboardHelper.copyToClipboard(context, valA, "Col A", "Copied Col A: $valA")
                             }
+                        },
+                        testTag = "tab_col_a"
+                    )
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                    // 4. EXCEL COLUMN B
+                    val valB = state.draftRow.values["B"] ?: ""
+                    GlossyTactileButton(
+                        title = if (valB.isNotEmpty()) "Col B ✓" else "Col B",
+                        iconLabel = "📑",
+                        brush = gradFb,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.triggerOverlayColumnPaste(context, "B")
+                        },
+                        onLongClick = {
+                            if (valB.isNotEmpty()) {
+                                ClipboardHelper.copyToClipboard(context, valB, "Col B", "Copied Col B: $valB")
+                            }
+                        },
+                        testTag = "tab_col_b"
+                    )
 
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(if (proxy.isConnected) BrandGreen else AlertRed)
+                    // 5. EXCEL COLUMN C (if 3+ columns)
+                    if (state.columnCount >= 3) {
+                        val valC = state.draftRow.values["C"] ?: ""
+                        GlossyTactileButton(
+                            title = if (valC.isNotEmpty()) "Col C ✓" else "Col C",
+                            iconLabel = "📊",
+                            brush = gradColC,
+                            shape = tabShape,
+                            onClick = {
+                                OverlayStateManager.triggerOverlayColumnPaste(context, "C")
+                            },
+                            testTag = "tab_col_c"
+                        )
+                    }
+
+                    // 6. 2FA TAB
+                    GlossyTactileButton(
+                        title = "2FA",
+                        icon = Icons.Default.Lock,
+                        brush = grad2Fa,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.triggerOverlay2FaPaste(context)
+                        },
+                        testTag = "tab_2fa"
+                    )
+
+                    // 7. CUSTOM USER APPS (Via, Dual, FB, Multiple Space)
+                    // Tap = Open, Press & Hold = Instant Auto-Close!
+                    if (state.customAppShortcuts.isNotEmpty()) {
+                        state.customAppShortcuts.forEach { shortcut ->
+                            val baseColor = try {
+                                Color(android.graphics.Color.parseColor(shortcut.colorHex))
+                            } catch (_: Exception) {
+                                Color(0xFF00ACC1)
+                            }
+                            val customBrush = Brush.verticalGradient(
+                                listOf(
+                                    baseColor.copy(alpha = 0.9f),
+                                    baseColor,
+                                    Color(0xFF102027)
+                                )
+                            )
+                            GlossyTactileButton(
+                                title = shortcut.appName,
+                                iconLabel = "🚀",
+                                brush = customBrush,
+                                shape = tabShape,
+                                onClick = {
+                                    OverlayStateManager.launchAppShortcut(context, shortcut)
+                                },
+                                onLongClick = {
+                                    // Instant Zero-Touch Auto-Close on Hold!
+                                    OverlayStateManager.closeAppShortcut(context, shortcut)
+                                },
+                                testTag = "tab_custom_${shortcut.appName}"
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // ==========================================
-                    // 5. FIFTH SECTION: Clear Data (Shows selected apps)
-                    // ==========================================
-                    Surface(
-                        onClick = {
-                            OverlayStateManager.toggleClearDataOverlayExpanded()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("overlay_section_5_clear_data"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = BrandRose.copy(alpha = 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandRose.copy(alpha = 0.45f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CleaningServices,
-                                        contentDescription = null,
-                                        tint = BrandRose,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            text = "Clear Data (${state.selectedClearDataApps.size} Apps)",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandRose
-                                        )
-                                        Text(
-                                            text = "Zero-Touch: Tap app to auto clear & close",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-                                }
-
-                                Icon(
-                                    imageVector = if (state.isClearDataOverlayExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = BrandRose,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-
-                            // Expanded selected apps list inside the floating overlay
-                            if (state.isClearDataOverlayExpanded) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                HorizontalDivider(
-                                    color = BrandRose.copy(alpha = 0.25f),
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )
-
-                                if (state.selectedClearDataApps.isEmpty()) {
-                                    Text(
-                                        text = "No apps selected. Open app to add.",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    ) {
-                                        state.selectedClearDataApps.forEach { appItem ->
-                                            Surface(
-                                                onClick = {
-                                                    OverlayStateManager.executeClearDataForApp(context, appItem)
-                                                },
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.surface,
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, BrandRose.copy(alpha = 0.3f)),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Text(
-                                                        text = appItem.appName,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        fontSize = 12.sp,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            text = "Clear",
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = BrandRose
-                                                        )
-                                                        Spacer(modifier = Modifier.width(3.dp))
-                                                        Icon(
-                                                            imageVector = Icons.Default.OpenInNew,
-                                                            contentDescription = null,
-                                                            tint = BrandRose,
-                                                            modifier = Modifier.size(12.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                // Quick Self Cache Cleaner button inside overlay
-                                Surface(
-                                    onClick = {
-                                        OverlayStateManager.executeSelfClearData(context)
-                                    },
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = AlertRed.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, AlertRed.copy(alpha = 0.5f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DeleteSweep,
-                                            contentDescription = null,
-                                            tint = AlertRed,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Clear Cache & History (Background)",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = AlertRed
-                                        )
-                                    }
-                                }
-                            }
+                    // 8. CLEAR DATA / CLEAN TAB
+                    if (state.selectedClearDataApps.isNotEmpty()) {
+                        state.selectedClearDataApps.take(3).forEach { appItem ->
+                            GlossyTactileButton(
+                                title = appItem.appName.take(10),
+                                iconLabel = "🧹",
+                                brush = gradClean,
+                                shape = tabShape,
+                                onClick = {
+                                    OverlayStateManager.executeClearDataForApp(context, appItem)
+                                },
+                                testTag = "tab_app_clean_${appItem.packageName}"
+                            )
                         }
+                    } else {
+                        GlossyTactileButton(
+                            title = "Clean",
+                            iconLabel = "🧹",
+                            brush = gradClean,
+                            shape = tabShape,
+                            onClick = {
+                                OverlayStateManager.executeSelfClearData(context)
+                            },
+                            testTag = "tab_clean"
+                        )
+                    }
+
+                    // 9. DOCK SIDE SWITCHER (⇄)
+                    GlossyTactileButton(
+                        title = "⇄",
+                        icon = Icons.Default.SwapHoriz,
+                        brush = gradSwitch,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.toggleDockSide()
+                        },
+                        testTag = "tab_switch_side"
+                    )
+
+                    // 10. CLOSE BUTTON (✕)
+                    GlossyTactileButton(
+                        title = "✕",
+                        icon = Icons.Default.Close,
+                        brush = gradClose,
+                        shape = tabShape,
+                        onClick = {
+                            OverlayStateManager.toggleEdgeBarMinimized()
+                        },
+                        testTag = "tab_close"
+                    )
+
+                    // Proxy status: country, IP & connection duration under tabs ONLY when connected!
+                    if (state.proxyState.isConnected) {
+                        Spacer(modifier = Modifier.height(3.dp))
+                        ProxyInfoStatusPill(state = state)
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 3D Tactile Glossy Button with specular top shine, icons, neon border, and tactile depth.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun GlossyTactileButton(
+    title: String,
+    brush: Brush,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    icon: ImageVector? = null,
+    iconLabel: String? = null,
+    modifier: Modifier = Modifier,
+    testTag: String = ""
+) {
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .widthIn(min = 72.dp, max = 115.dp)
+            .shadow(4.dp, shape = shape)
+            .clip(shape)
+            .background(brush)
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.15f)
+                    )
+                ),
+                shape
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 9.dp, vertical = 2.dp)
+            .testTag(testTag)
+    ) {
+        // Specular Top Shine Overlay (Glass reflection)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+            } else if (iconLabel != null) {
+                Text(
+                    text = iconLabel,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
+            Text(
+                text = title,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 12.sp,
+                letterSpacing = 0.2.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * Micro status pill showing Proxy Country, IP, and live Connection Time.
+ * Strictly shown ONLY when proxy is actively connected!
+ */
+@Composable
+fun ProxyInfoStatusPill(state: OverlayUiState) {
+    val proxy = state.proxyState
+    if (!proxy.isConnected) return
+
+    val countryStr = when (proxy.countryCode.uppercase()) {
+        "BD" -> "🇧🇩 BD"
+        "US" -> "🇺🇸 US"
+        "GB" -> "🇬🇧 UK"
+        "CA" -> "🇨🇦 CA"
+        "IN" -> "🇮🇳 IN"
+        else -> proxy.countryCode.ifEmpty { "BD" }
+    }
+    val timeStr = OverlayStateManager.formatDuration(proxy.connectedDurationSeconds)
+    val ipStr = proxy.ipAddress.ifEmpty { proxy.host }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xF20A101D),
+        shadowElevation = 6.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Color(0xFF00E676)
+        ),
+        modifier = Modifier.testTag("overlay_proxy_status_pill")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF00E676))
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = "$countryStr • $ipStr • $timeStr",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

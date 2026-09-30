@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <queries>
         <intent>
@@ -39,6 +40,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".util.ClipboardReaderActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance"
+            android:exported="false"
+            android:noHistory="true" />
+
         <service
             android:name=".service.FloatingOverlayService"
             android:enabled="true"
@@ -47,6 +57,19 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Work shortcut floating productivity tools overlay" />
+        </service>
+
+        <service
+            android:name=".service.SuperProxyVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Proxy VPN connection service" />
         </service>
 
         <service

@@ -192,94 +192,97 @@ fun ExcelCollectorSection(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Column item rows
+                    // Column item cards (Copy Column A, Copy Column B, etc. like an Excel sheet)
                     for (i in 0 until state.columnCount) {
                         val colKey = ('A' + i).toString()
                         val colValue = draft.values[colKey] ?: ""
                         val isDupe = draft.duplicateColumn == colKey
 
-                        Row(
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isDupe) AlertRed.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isDupe) AlertRed else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp)
                         ) {
-                            // Column Badge Button (tap pastes clipboard)
-                            Surface(
-                                onClick = {
-                                    val clipText = ClipboardHelper.getFromClipboard(context)
-                                    if (!clipText.isNullOrEmpty()) {
-                                        OverlayStateManager.pasteToColumn(context, colKey, clipText)
-                                    } else {
-                                        ClipboardHelper.copyToClipboard(context, colValue, "Col $colKey", "Clipboard is empty")
-                                    }
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isDupe) AlertRed.copy(alpha = 0.2f) else BrandTeal.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isDupe) AlertRed else BrandTeal
-                                ),
-                                modifier = Modifier
-                                    .width(72.dp)
-                                    .height(48.dp)
-                                    .testTag("paste_col_${colKey}_btn")
-                            ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentPaste,
-                                        contentDescription = null,
-                                        tint = if (isDupe) AlertRed else BrandTeal,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = colKey,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isDupe) AlertRed else BrandTeal,
-                                        fontSize = 13.sp
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Column $colKey",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = if (isDupe) AlertRed else BrandTeal
+                                        )
+                                        if (colValue.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = if (isDupe) "(Duplicate!)" else "(Filled ✓)",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isDupe) AlertRed else BrandTeal
+                                            )
+                                        }
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        // Paste Button from Keyboard
+                                        OutlinedButton(
+                                            onClick = {
+                                                OverlayStateManager.triggerOverlayColumnPaste(context, colKey)
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Paste", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        }
+
+                                        // Explicit "Copy Col A" button
+                                        Button(
+                                            onClick = {
+                                                OverlayStateManager.copySingleColumn(context, colKey)
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = if (isDupe) AlertRed else BrandTeal),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Copy Col $colKey", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                            // Editable Column text field
-                            OutlinedTextField(
-                                value = colValue,
-                                onValueChange = { newVal ->
-                                    OverlayStateManager.pasteToColumn(context, colKey, newVal)
-                                },
-                                placeholder = { Text("Paste or type text for $colKey...") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("input_col_${colKey}"),
-                                singleLine = true,
-                                shape = RoundedCornerShape(10.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = if (isDupe) AlertRed else BrandTeal,
-                                    unfocusedBorderColor = if (isDupe) AlertRed else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                                )
-                            )
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            // Individual Copy Button for this column
-                            IconButton(
-                                onClick = {
-                                    OverlayStateManager.copySingleColumn(context, colKey)
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy Col $colKey",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                                // Editable Column text field
+                                OutlinedTextField(
+                                    value = colValue,
+                                    onValueChange = { newVal ->
+                                        OverlayStateManager.pasteToColumn(context, colKey, newVal)
+                                    },
+                                    placeholder = { Text("Paste or type value for Column $colKey...") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_col_${colKey}"),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (isDupe) AlertRed else BrandTeal,
+                                        unfocusedBorderColor = if (isDupe) AlertRed else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    )
                                 )
                             }
                         }

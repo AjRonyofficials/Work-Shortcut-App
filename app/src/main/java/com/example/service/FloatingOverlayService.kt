@@ -48,12 +48,6 @@ class FloatingOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, S
     private var overlayComposeView: ComposeView? = null
     private var windowLayoutParams: WindowManager.LayoutParams? = null
 
-    private var initialX = 0
-    private var initialY = 0
-    private var initialTouchX = 0f
-    private var initialTouchY = 0f
-    private var isDragging = false
-
     override fun onCreate() {
         super.onCreate()
         savedStateRegistryController.performRestore(null)
@@ -141,29 +135,27 @@ class FloatingOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, S
 
             setContent {
                 val state by OverlayStateManager.uiState.collectAsState()
+
                 WorkShortcutTheme(themeMode = state.appTheme) {
                     FloatingOverlayWindowContent(
                         state = state,
                         onDragStart = { _, _ -> },
                         onDragDelta = { dx, dy ->
                             this@FloatingOverlayService.windowLayoutParams?.let { p ->
-                                p.x += dx.toInt()
-                                p.y += dy.toInt()
+                                p.gravity = Gravity.TOP or Gravity.START
+                                p.x = (p.x + dx.toInt()).coerceAtLeast(0)
+                                p.y = (p.y + dy.toInt()).coerceAtLeast(40)
                                 windowManager?.updateViewLayout(this@apply, p)
                             }
                         },
                         onToggleExpand = {
-                            OverlayStateManager.toggleOverlayExpanded()
+                            OverlayStateManager.toggleEdgeBarMinimized()
                         },
                         onCloseOverlay = {
                             stopSelf()
                         }
                     )
                 }
-            }
-
-            setOnTouchListener { _, event ->
-                handleTouch(event)
             }
         }
 
@@ -173,37 +165,6 @@ class FloatingOverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, S
         } catch (_: Exception) {
             stopSelf()
         }
-    }
-
-    private fun handleTouch(event: MotionEvent): Boolean {
-        val params = windowLayoutParams ?: return false
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                initialX = params.x
-                initialY = params.y
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
-                isDragging = false
-                return false
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val deltaX = (event.rawX - initialTouchX).toInt()
-                val deltaY = (event.rawY - initialTouchY).toInt()
-                if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
-                    isDragging = true
-                    params.x = initialX + deltaX
-                    params.y = initialY + deltaY
-                    windowManager?.updateViewLayout(overlayComposeView, params)
-                    return true
-                }
-            }
-            MotionEvent.ACTION_UP -> {
-                if (isDragging) {
-                    return true
-                }
-            }
-        }
-        return false
     }
 
     override fun onDestroy() {

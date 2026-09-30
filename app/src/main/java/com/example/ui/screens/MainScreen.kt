@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Key
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
@@ -73,10 +75,11 @@ enum class AppNavTab(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
-    NAMES("Names", Icons.Filled.Person, Icons.Outlined.Person),
-    EXCEL("Excel", Icons.Filled.TableChart, Icons.Outlined.TableChart),
-    TWO_FACTOR("2FA", Icons.Filled.Key, Icons.Outlined.Key),
+    SHORTCUTS("Apps", Icons.Filled.Apps, Icons.Outlined.Apps),
     PROXY("Proxy", Icons.Filled.Security, Icons.Outlined.Security),
+    TWO_FACTOR("2FA", Icons.Filled.Key, Icons.Outlined.Key),
+    EXCEL("Excel", Icons.Filled.TableChart, Icons.Outlined.TableChart),
+    NAMES("Names", Icons.Filled.Person, Icons.Outlined.Person),
     CLEAR_DATA("Clean", Icons.Filled.CleaningServices, Icons.Outlined.CleaningServices),
     SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
@@ -93,6 +96,19 @@ fun MainScreen(
 ) {
     var selectedTab by remember { mutableStateOf(AppNavTab.NAMES) }
     var inAppBubbleVisible by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        OverlayStateManager.requestedAppTab.collect { tabName ->
+            when (tabName) {
+                "PROXY" -> selectedTab = AppNavTab.PROXY
+                "NAMES" -> selectedTab = AppNavTab.NAMES
+                "EXCEL" -> selectedTab = AppNavTab.EXCEL
+                "TWO_FACTOR" -> selectedTab = AppNavTab.TWO_FACTOR
+                "APPS" -> selectedTab = AppNavTab.SHORTCUTS
+                "CLEAR_DATA" -> selectedTab = AppNavTab.CLEAR_DATA
+            }
+        }
+    }
 
     // Coordinates for in-app movable bubble
     var bubbleOffsetX by remember { mutableFloatStateOf(40f) }
@@ -198,6 +214,7 @@ fun MainScreen(
                     .padding(paddingValues)
             ) {
                 when (selectedTab) {
+                    AppNavTab.SHORTCUTS -> AppShortcutsSection(state = state)
                     AppNavTab.NAMES -> NameGeneratorSection(state = state)
                     AppNavTab.EXCEL -> ExcelCollectorSection(
                         state = state,
