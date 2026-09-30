@@ -76,6 +76,7 @@ data class OverlayUiState(
     val selectedCountry: String = "BD",
     val selectedGender: Gender = Gender.ANY,
     val columnCount: Int = 3,
+    val currentSheetRowIndex: Int = 1,
     val draftRow: ExcelDraftRow = ExcelDraftRow(),
     val twoFactorKey: String = "JBSWY3DPEHPK3PXP", // standard demo key
     val totpResult: TotpHelper.TotpResult? = null,
@@ -99,6 +100,11 @@ object OverlayStateManager {
     private var totpTickerJob: Job? = null
     private var pingTickerJob: Job? = null
     private var prefs: SharedPreferences? = null
+    private var repository: com.example.data.local.WorkShortcutRepository? = null
+
+    fun setRepository(repo: com.example.data.local.WorkShortcutRepository) {
+        repository = repo
+    }
 
     private val _uiState = MutableStateFlow(OverlayUiState())
     val uiState: StateFlow<OverlayUiState> = _uiState.asStateFlow()
@@ -115,10 +121,21 @@ object OverlayStateManager {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("work_shortcut_prefs", Context.MODE_PRIVATE)
+
+        if (repository == null) {
+            val db = com.example.data.local.AppDatabase.getDatabase(context)
+            repository = com.example.data.local.WorkShortcutRepository(
+                excelRowDao = db.excelRowDao(),
+                proxyProfileDao = db.proxyProfileDao(),
+                twoFactorDao = db.twoFactorDao()
+            )
+        }
+
         prefs?.let { p ->
             val country = p.getString("selected_country", "BD") ?: "BD"
             val genderName = p.getString("selected_gender", Gender.ANY.name) ?: Gender.ANY.name
             val colCount = p.getInt("column_count", 3)
+            val savedRowIndex = p.getInt("current_sheet_row_index", 1)
             val bubbleSizeName = p.getString("bubble_size", BubbleSize.MEDIUM.name) ?: BubbleSize.MEDIUM.name
             val themeName = p.getString("app_theme", AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
             val lowPower = p.getBoolean("low_power", false)
@@ -158,14 +175,18 @@ object OverlayStateManager {
             val proxyAllowedApps = p.getStringSet("proxy_allowed_apps", emptySet())?.toList() ?: emptyList()
 
             val savedShortcutsString = p.getString("custom_app_shortcuts", null)
-            val loadedShortcuts = if (!savedShortcutsString.isNullOrEmpty()) {
-                savedShortcutsString.split(";;").mapNotNull { entry ->
-                    val parts = entry.split("::")
-                    if (parts.size >= 4) {
-                        CustomAppShortcut(id = parts[0], appName = parts[1], packageName = parts[2], colorHex = parts[3])
-                    } else if (parts.size >= 3) {
-                        CustomAppShortcut(id = parts[0], appName = parts[1], packageName = parts[2])
-                    } else null
+            val loadedShortcuts = if (savedShortcutsString != null) {
+                if (savedShortcutsString.isNotEmpty()) {
+                    savedShortcutsString.split(";;").mapNotNull { entry ->
+                        val parts = entry.split("::")
+                        if (parts.size >= 4) {
+                            CustomAppShortcut(id = parts[0], appName = parts[1], packageName = parts[2], colorHex = parts[3])
+                        } else if (parts.size >= 3) {
+                            CustomAppShortcut(id = parts[0], appName = parts[1], packageName = parts[2])
+                        } else null
+                    }
+                } else {
+                    emptyList()
                 }
             } else {
                 listOf(
@@ -179,6 +200,7 @@ object OverlayStateManager {
                     selectedCountry = country,
                     selectedGender = try { Gender.valueOf(genderName) } catch (_: Exception) { Gender.ANY },
                     columnCount = colCount,
+                    currentSheetRowIndex = savedRowIndex,
                     bubbleSize = try { BubbleSize.valueOf(bubbleSizeName) } catch (_: Exception) { BubbleSize.MEDIUM },
                     appTheme = try { AppThemeMode.valueOf(themeName) } catch (_: Exception) { AppThemeMode.DARK },
                     lowPowerMode = lowPower,
@@ -375,8 +397,151 @@ object OverlayStateManager {
         }
     }
 
+    fun setCurrentSheetRow(rowNumber: Int) {
+        val safeRow = rowNumber.coerceAtLeast(1)
+        _uiState.update { it.copy(currentSheetRowIndex = safeRow) }
+        prefs?.edit()?.putInt("current_sheet_row_index", safeRow)?.apply()
+    }
+
+    fun incrementSheetRow() {
+        setCurrentSheetRow(_uiState.value.currentSheetRowIndex + 1)
+    }
+
+    fun decrementSheetRow() {
+        val prev = (_uiState.value.currentSheetRowIndex - 1).coerceAtLeast(1)
+        setCurrentSheetRow(prev)
+    }
+
+    /**
+     * Fast Pastes keyboard clipboard text directly into Row `currentSheetRowIndex` for `columnKey`.
+     * - ONLY PASTE: Nothing is copied to clipboard!
+     * - NO "Copied" toast!
+     * - If duplicate: vibrates alert, but NEVER opens the app!
+     * - Automatically advances row on Column B paste.
+     */
+    fun fastPasteToSheetColumn(context: Context, columnKey: String) {
+        val clipText = com.example.util.ClipboardHelper.getFromClipboard(context)?.trim() ?: ""
+        if (clipText.isEmpty()) {
+            Toast.makeText(context, "Clipboard empty! Copy text first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val targetRowNumber = _uiState.value.currentSheetRowIndex
+        val currentDraft = _uiState.value.draftRow.values.toMutableMap()
+
+        // Check if duplicate with other column in this row
+        var isDuplicate = false
+        var conflictCol: String? = null
+        for ((key, value) in currentDraft) {
+            if (key != columnKey && value.equals(clipText, ignoreCase = true) && value.isNotEmpty()) {
+                isDuplicate = true
+                conflictCol = key
+                break
+            }
+        }
+
+        currentDraft[columnKey] = clipText
+
+        if (isDuplicate) {
+            // Trigger vibration alert only - NEVER OPEN APP!
+            if (_uiState.value.vibrationEnabled) {
+                com.example.util.VibrationHelper.vibrateDuplicateAlert(context)
+            }
+            Toast.makeText(context, "⚠️ Duplicate with Col $conflictCol", Toast.LENGTH_SHORT).show()
+        } else {
+            if (_uiState.value.vibrationEnabled) {
+                com.example.util.VibrationHelper.vibrateTactileClick(context)
+            }
+            // FAST TOAST: ONLY PASTE! NO "COPIED"!
+            Toast.makeText(context, "$columnKey$targetRowNumber Pasted ✓", Toast.LENGTH_SHORT).show()
+        }
+
+        _uiState.update {
+            it.copy(
+                draftRow = ExcelDraftRow(
+                    values = currentDraft,
+                    duplicateColumn = if (isDuplicate) columnKey else null,
+                    duplicateConflictWith = conflictCol,
+                    duplicateValue = if (isDuplicate) clipText else null
+                )
+            )
+        }
+
+        // Save to Room database asynchronously
+        scope.launch {
+            repository?.let { repo ->
+                val entity = com.example.data.local.model.ExcelRowEntity(
+                    id = targetRowNumber.toLong(),
+                    colA = currentDraft["A"] ?: "",
+                    colB = currentDraft["B"] ?: "",
+                    colC = currentDraft["C"] ?: "",
+                    colD = currentDraft["D"] ?: "",
+                    hasDuplicateWarning = isDuplicate,
+                    duplicateDetails = conflictCol ?: ""
+                )
+                repo.insertExcelRow(entity)
+            }
+        }
+
+        // When Column B is pasted, advance to next row automatically!
+        if (columnKey.equals("B", ignoreCase = true)) {
+            val nextRow = targetRowNumber + 1
+            setCurrentSheetRow(nextRow)
+            _uiState.update {
+                it.copy(
+                    draftRow = ExcelDraftRow(values = mapOf("A" to "", "B" to "", "C" to ""))
+                )
+            }
+        }
+    }
+
+    fun copyColumnRecords(context: Context, columnKey: String, rows: List<com.example.data.local.model.ExcelRowEntity>) {
+        val lines = rows.map { row ->
+            when (columnKey.uppercase()) {
+                "A" -> row.colA
+                "B" -> row.colB
+                "C" -> row.colC
+                "D" -> row.colD
+                else -> row.colA
+            }
+        }.filter { it.isNotBlank() }
+
+        if (lines.isEmpty()) {
+            Toast.makeText(context, "No data in Column $columnKey to copy!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val text = lines.joinToString("\n")
+        com.example.util.ClipboardHelper.copyToClipboard(
+            context = context,
+            text = text,
+            label = "Column $columnKey",
+            toastMessage = "Copied ${lines.size} items from Column $columnKey!"
+        )
+    }
+
+    fun copyAllRowsAsCsv(context: Context, rows: List<com.example.data.local.model.ExcelRowEntity>) {
+        if (rows.isEmpty()) {
+            Toast.makeText(context, "No rows to export!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val csvLines = rows.map { row ->
+            listOf(row.id.toString(), row.colA, row.colB, row.colC, row.colD).joinToString(",")
+        }
+        val header = "#,COL A,COL B,COL C,COL D"
+        val fullCsv = (listOf(header) + csvLines).joinToString("\n")
+
+        com.example.util.ClipboardHelper.copyToClipboard(
+            context = context,
+            text = fullCsv,
+            label = "Sheet CSV",
+            toastMessage = "Copied all ${rows.size} rows as CSV!"
+        )
+    }
+
     fun autoPasteClipboardToColumn(context: Context, columnKey: String) {
-        triggerOverlayColumnPaste(context, columnKey)
+        fastPasteToSheetColumn(context, columnKey)
     }
 
     fun pasteToColumnDirect(context: Context, columnKey: String, textToPaste: String): Boolean {
@@ -597,10 +762,22 @@ object OverlayStateManager {
         prefs?.edit()?.putStringSet("proxy_allowed_apps", packages.toSet())?.apply()
     }
 
+    fun toggleProxyAllowedApp(packageName: String, shouldAllow: Boolean) {
+        val current = _uiState.value.proxyState.allowedApps.toMutableList()
+        if (shouldAllow) {
+            if (!current.contains(packageName)) current.add(packageName)
+        } else {
+            current.remove(packageName)
+        }
+        setProxyAllowedApps(current)
+    }
+
     fun updateSuperProxyProfile(
         profileName: String,
         server: String,
         port: Int,
+        protocol: String = "SOCKS5",
+        countryCode: String = "BD",
         username: String = "",
         password: String = ""
     ) {
@@ -611,6 +788,8 @@ object OverlayStateManager {
                     host = server,
                     port = port,
                     ipAddress = server,
+                    protocol = protocol,
+                    countryCode = countryCode.uppercase(),
                     username = username,
                     password = password
                 )
@@ -620,6 +799,8 @@ object OverlayStateManager {
             ?.putString("proxy_profile_name", profileName)
             ?.putString("proxy_host", server)
             ?.putInt("proxy_port", port)
+            ?.putString("proxy_protocol", protocol)
+            ?.putString("proxy_country", countryCode.uppercase())
             ?.putString("proxy_username", username)
             ?.putString("proxy_password", password)
             ?.apply()
@@ -655,42 +836,73 @@ object OverlayStateManager {
     fun toggleProxyConnection(context: Context? = null) {
         val current = _uiState.value.proxyState
         if (current.isConnected) {
-            proxyDurationJob?.cancel()
-            _uiState.update {
-                it.copy(
-                    proxyState = it.proxyState.copy(
-                        isConnected = false,
-                        statusText = "Disconnected",
-                        connectedDurationSeconds = 0
-                    )
-                )
-            }
-            context?.let { ctx ->
-                SuperProxyVpnService.stop(ctx)
-                Toast.makeText(ctx, "Disconnected: ${current.profileName}", Toast.LENGTH_SHORT).show()
-            }
+            disconnectProxy(context)
         } else {
-            testAndConnectProxy(context)
+            startProxyConnection(context)
         }
     }
 
-    fun testAndConnectProxy(context: Context? = null) {
+    fun disconnectProxy(context: Context? = null) {
+        proxyDurationJob?.cancel()
+        _uiState.update {
+            it.copy(
+                proxyState = it.proxyState.copy(
+                    isConnected = false,
+                    isTesting = false,
+                    statusText = "Disconnected",
+                    connectedDurationSeconds = 0
+                )
+            )
+        }
+        context?.let { ctx ->
+            SuperProxyVpnService.stop(ctx)
+            Toast.makeText(ctx, "Proxy Disconnected", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startProxyConnection(context: Context? = null) {
         scope.launch {
             val state = _uiState.value
             val proxy = state.proxyState
+
+            if (proxy.host.isBlank()) {
+                context?.let { Toast.makeText(it, "Please enter a valid proxy server host!", Toast.LENGTH_SHORT).show() }
+                return@launch
+            }
+
             _uiState.update {
-                it.copy(proxyState = it.proxyState.copy(isTesting = true, statusText = "Connecting..."))
+                it.copy(proxyState = it.proxyState.copy(isTesting = true, statusText = "Testing & Connecting..."))
             }
 
             val result = ProxyTester.testProxy(
                 host = proxy.host,
                 port = proxy.port,
                 protocol = proxy.protocol,
+                username = proxy.username,
+                password = proxy.password,
                 pingOptimized = state.pingOptimization
             )
 
+            if (!result.isSuccess) {
+                _uiState.update {
+                    it.copy(
+                        proxyState = it.proxyState.copy(
+                            isConnected = false,
+                            isTesting = false,
+                            statusText = "Connection Failed: ${result.errorMessage}"
+                        )
+                    )
+                }
+                context?.let { ctx ->
+                    VibrationHelper.vibrateDuplicateAlert(ctx)
+                    Toast.makeText(ctx, "Proxy Failed: ${result.errorMessage}", Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
+
             val effectiveIp = result.resolvedIp ?: proxy.host
-            val latency = if (result.latencyMs > 0) result.latencyMs else 38L
+            val country = result.countryCode ?: proxy.countryCode
+            val latency = if (result.latencyMs > 0) result.latencyMs else 42L
 
             _uiState.update {
                 it.copy(
@@ -698,6 +910,7 @@ object OverlayStateManager {
                         isConnected = true,
                         isTesting = false,
                         ipAddress = effectiveIp,
+                        countryCode = country,
                         pingMs = latency,
                         connectedDurationSeconds = 0,
                         statusText = "Connected ($effectiveIp • ${latency}ms)"
@@ -721,6 +934,7 @@ object OverlayStateManager {
             }
 
             context?.let { ctx ->
+                VibrationHelper.vibrateSuccess(ctx)
                 SuperProxyVpnService.start(
                     ctx,
                     proxy.profileName,
@@ -728,13 +942,13 @@ object OverlayStateManager {
                     proxy.port,
                     proxy.allowedApps
                 )
-                Toast.makeText(
-                    ctx,
-                    "Connected: ${proxy.profileName}\nIP: $effectiveIp • Time: 00:00:01",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(ctx, "Super Proxy Connected! ($country • $effectiveIp)", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    fun testAndConnectProxy(context: Context? = null) {
+        startProxyConnection(context)
     }
 
     fun formatDuration(seconds: Long): String {
@@ -749,24 +963,57 @@ object OverlayStateManager {
     }
 
     // Custom App Shortcuts Management
-    fun addCustomAppShortcut(appName: String, packageName: String) {
-        val trimmedName = appName.trim()
+    fun addCustomAppShortcut(appName: String, packageName: String): Boolean {
+        val trimmedName = appName.trim().take(12)
         val trimmedPkg = packageName.trim()
-        if (trimmedName.isEmpty() || trimmedPkg.isEmpty()) return
+        if (trimmedName.isEmpty() || trimmedPkg.isEmpty()) return false
+
+        val current = _uiState.value.customAppShortcuts
+        if (current.any { it.packageName == trimmedPkg }) {
+            return false // already exists
+        }
 
         val colors = listOf("#0288D1", "#2E7D32", "#EF6C00", "#1565C0", "#7B1FA2", "#00838F")
         val newShortcut = CustomAppShortcut(
             appName = trimmedName,
             packageName = trimmedPkg,
-            colorHex = colors[(_uiState.value.customAppShortcuts.size) % colors.size]
+            colorHex = colors[current.size % colors.size]
         )
-        val updated = _uiState.value.customAppShortcuts + newShortcut
+        val updated = current + newShortcut
         _uiState.update { it.copy(customAppShortcuts = updated) }
         saveCustomShortcuts(updated)
+        return true
+    }
+
+    fun toggleAppShortcut(appName: String, packageName: String, shouldAdd: Boolean) {
+        val current = _uiState.value.customAppShortcuts.toMutableList()
+        val trimmedPkg = packageName.trim()
+        if (shouldAdd) {
+            if (current.none { it.packageName == trimmedPkg }) {
+                val colors = listOf("#0288D1", "#2E7D32", "#EF6C00", "#1565C0", "#7B1FA2", "#00838F")
+                current.add(
+                    CustomAppShortcut(
+                        appName = appName.trim().take(12),
+                        packageName = trimmedPkg,
+                        colorHex = colors[current.size % colors.size]
+                    )
+                )
+            }
+        } else {
+            current.removeAll { it.packageName == trimmedPkg }
+        }
+        _uiState.update { it.copy(customAppShortcuts = current) }
+        saveCustomShortcuts(current)
     }
 
     fun removeCustomAppShortcut(id: String) {
         val updated = _uiState.value.customAppShortcuts.filterNot { it.id == id }
+        _uiState.update { it.copy(customAppShortcuts = updated) }
+        saveCustomShortcuts(updated)
+    }
+
+    fun removeCustomAppShortcutByPackage(packageName: String) {
+        val updated = _uiState.value.customAppShortcuts.filterNot { it.packageName == packageName }
         _uiState.update { it.copy(customAppShortcuts = updated) }
         saveCustomShortcuts(updated)
     }

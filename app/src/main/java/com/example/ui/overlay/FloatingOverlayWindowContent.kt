@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -12,12 +13,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -209,10 +214,13 @@ fun FloatingOverlayWindowContent(
                     )
             ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                    horizontalAlignment = if (isLeft) Alignment.Start else Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .padding(horizontal = 7.dp, vertical = 8.dp)
+                        .widthIn(min = 96.dp, max = 118.dp)
+                        .heightIn(max = 540.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 6.dp, vertical = 6.dp)
                         .testTag("floating_edge_tabs_column")
                 ) {
                     // Sleek Drag Grip Header Handle
@@ -236,6 +244,7 @@ fun FloatingOverlayWindowContent(
                         onClick = {
                             OverlayStateManager.toggleProxyConnection(context)
                         },
+                        modifier = Modifier.fillMaxWidth(),
                         testTag = "tab_proxy"
                     )
 
@@ -248,56 +257,38 @@ fun FloatingOverlayWindowContent(
                         onClick = {
                             OverlayStateManager.generateAndCopyRealtimeName(context)
                         },
+                        modifier = Modifier.fillMaxWidth(),
                         testTag = "tab_name"
                     )
 
-                    // 3. EXCEL COLUMN A
-                    val valA = state.draftRow.values["A"] ?: ""
-                    GlossyTactileButton(
-                        title = if (valA.isNotEmpty()) "Col A ✓" else "Col A",
-                        iconLabel = "📋",
-                        brush = gradDual,
-                        shape = tabShape,
+                    // 3. EXCEL COLUMN A (A11 circular button like Screenshot)
+                    SheetCircularButton(
+                        title = "A${state.currentSheetRowIndex}",
                         onClick = {
-                            OverlayStateManager.triggerOverlayColumnPaste(context, "A")
+                            OverlayStateManager.fastPasteToSheetColumn(context, "A")
                         },
-                        onLongClick = {
-                            if (valA.isNotEmpty()) {
-                                ClipboardHelper.copyToClipboard(context, valA, "Col A", "Copied Col A: $valA")
-                            }
-                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
                         testTag = "tab_col_a"
                     )
 
-                    // 4. EXCEL COLUMN B
-                    val valB = state.draftRow.values["B"] ?: ""
-                    GlossyTactileButton(
-                        title = if (valB.isNotEmpty()) "Col B ✓" else "Col B",
-                        iconLabel = "📑",
-                        brush = gradFb,
-                        shape = tabShape,
+                    // 4. EXCEL COLUMN B (B11 circular button like Screenshot)
+                    SheetCircularButton(
+                        title = "B${state.currentSheetRowIndex}",
                         onClick = {
-                            OverlayStateManager.triggerOverlayColumnPaste(context, "B")
+                            OverlayStateManager.fastPasteToSheetColumn(context, "B")
                         },
-                        onLongClick = {
-                            if (valB.isNotEmpty()) {
-                                ClipboardHelper.copyToClipboard(context, valB, "Col B", "Copied Col B: $valB")
-                            }
-                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
                         testTag = "tab_col_b"
                     )
 
                     // 5. EXCEL COLUMN C (if 3+ columns)
                     if (state.columnCount >= 3) {
-                        val valC = state.draftRow.values["C"] ?: ""
-                        GlossyTactileButton(
-                            title = if (valC.isNotEmpty()) "Col C ✓" else "Col C",
-                            iconLabel = "📊",
-                            brush = gradColC,
-                            shape = tabShape,
+                        SheetCircularButton(
+                            title = "C${state.currentSheetRowIndex}",
                             onClick = {
-                                OverlayStateManager.triggerOverlayColumnPaste(context, "C")
+                                OverlayStateManager.fastPasteToSheetColumn(context, "C")
                             },
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
                             testTag = "tab_col_c"
                         )
                     }
@@ -311,13 +302,21 @@ fun FloatingOverlayWindowContent(
                         onClick = {
                             OverlayStateManager.triggerOverlay2FaPaste(context)
                         },
+                        modifier = Modifier.fillMaxWidth(),
                         testTag = "tab_2fa"
                     )
 
                     // 7. CUSTOM USER APPS (Via, Dual, FB, Multiple Space)
-                    // Tap = Open, Press & Hold = Instant Auto-Close!
+                    // If multiple apps (> 1), show in 2-column box! If 1 app, show single full-width button.
                     if (state.customAppShortcuts.isNotEmpty()) {
-                        state.customAppShortcuts.forEach { shortcut ->
+                        if (state.customAppShortcuts.size > 1) {
+                            AppShortcutsGridBox(
+                                shortcuts = state.customAppShortcuts,
+                                context = context,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            val shortcut = state.customAppShortcuts[0]
                             val baseColor = try {
                                 Color(android.graphics.Color.parseColor(shortcut.colorHex))
                             } catch (_: Exception) {
@@ -342,14 +341,24 @@ fun FloatingOverlayWindowContent(
                                     // Instant Zero-Touch Auto-Close on Hold!
                                     OverlayStateManager.closeAppShortcut(context, shortcut)
                                 },
+                                modifier = Modifier.fillMaxWidth(),
                                 testTag = "tab_custom_${shortcut.appName}"
                             )
                         }
                     }
 
                     // 8. CLEAR DATA / CLEAN TAB
+                    // If multiple apps (> 1), show in 2-column box! If 1 app, show single full-width button.
                     if (state.selectedClearDataApps.isNotEmpty()) {
-                        state.selectedClearDataApps.take(3).forEach { appItem ->
+                        if (state.selectedClearDataApps.size > 1) {
+                            ClearDataGridBox(
+                                apps = state.selectedClearDataApps,
+                                brush = gradClean,
+                                context = context,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            val appItem = state.selectedClearDataApps[0]
                             GlossyTactileButton(
                                 title = appItem.appName.take(10),
                                 iconLabel = "🧹",
@@ -358,6 +367,7 @@ fun FloatingOverlayWindowContent(
                                 onClick = {
                                     OverlayStateManager.executeClearDataForApp(context, appItem)
                                 },
+                                modifier = Modifier.fillMaxWidth(),
                                 testTag = "tab_app_clean_${appItem.packageName}"
                             )
                         }
@@ -370,33 +380,40 @@ fun FloatingOverlayWindowContent(
                             onClick = {
                                 OverlayStateManager.executeSelfClearData(context)
                             },
+                            modifier = Modifier.fillMaxWidth(),
                             testTag = "tab_clean"
                         )
                     }
 
-                    // 9. DOCK SIDE SWITCHER (⇄)
-                    GlossyTactileButton(
-                        title = "⇄",
-                        icon = Icons.Default.SwapHoriz,
-                        brush = gradSwitch,
-                        shape = tabShape,
-                        onClick = {
-                            OverlayStateManager.toggleDockSide()
-                        },
-                        testTag = "tab_switch_side"
-                    )
+                    // 9 & 10. DOCK SIDE SWITCHER (⇄) & CLOSE BUTTON (✕) SIDE BY SIDE IN 2 COLUMNS
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        GlossyTactileButton(
+                            title = "⇄",
+                            icon = Icons.Default.SwapHoriz,
+                            brush = gradSwitch,
+                            shape = tabShape,
+                            onClick = {
+                                OverlayStateManager.toggleDockSide()
+                            },
+                            modifier = Modifier.weight(1f),
+                            testTag = "tab_switch_side"
+                        )
 
-                    // 10. CLOSE BUTTON (✕)
-                    GlossyTactileButton(
-                        title = "✕",
-                        icon = Icons.Default.Close,
-                        brush = gradClose,
-                        shape = tabShape,
-                        onClick = {
-                            OverlayStateManager.toggleEdgeBarMinimized()
-                        },
-                        testTag = "tab_close"
-                    )
+                        GlossyTactileButton(
+                            title = "✕",
+                            icon = Icons.Default.Close,
+                            brush = gradClose,
+                            shape = tabShape,
+                            onClick = {
+                                OverlayStateManager.toggleEdgeBarMinimized()
+                            },
+                            modifier = Modifier.weight(1f),
+                            testTag = "tab_close"
+                        )
+                    }
 
                     // Proxy status: country, IP & connection duration under tabs ONLY when connected!
                     if (state.proxyState.isConnected) {
@@ -428,7 +445,7 @@ fun GlossyTactileButton(
     Box(
         modifier = modifier
             .height(34.dp)
-            .widthIn(min = 72.dp, max = 115.dp)
+            .widthIn(min = 36.dp, max = 120.dp)
             .shadow(4.dp, shape = shape)
             .clip(shape)
             .background(brush)
@@ -550,3 +567,368 @@ fun ProxyInfoStatusPill(state: OverlayUiState) {
         }
     }
 }
+
+/**
+ * 3D Metallic Circular Button for A{row} and B{row} as seen in user screenshot!
+ * Circular shape with silver metallic gradient, white border, and hot pink text.
+ */
+@Composable
+fun SheetCircularButton(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String = ""
+) {
+    Box(
+        modifier = modifier
+            .size(46.dp)
+            .shadow(4.dp, CircleShape)
+            .clip(CircleShape)
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFF0F0F0),
+                        Color(0xFF9E9E9E),
+                        Color(0xFF424242)
+                    )
+                )
+            )
+            .border(1.5.dp, Color.White.copy(alpha = 0.95f), CircleShape)
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = Color(0xFFFF007F), // Vibrant hot pink exactly as in screenshot
+            fontWeight = FontWeight.Black,
+            fontSize = 15.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * 2-Column Serial Grid Box for Custom Apps (Via, Dual, FB, Lite, etc.)
+ * Displays apps in a sleek cyber-bordered box with 2 columns, preventing vertical overflow.
+ */
+@Composable
+fun AppShortcutsGridBox(
+    shortcuts: List<com.example.service.CustomAppShortcut>,
+    context: android.content.Context,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xE60A1324), Color(0xF20F1D33))
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF00E5FF).copy(alpha = 0.75f),
+                        Color(0xFF0288D1).copy(alpha = 0.35f)
+                    )
+                ),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .testTag("app_shortcuts_grid_box")
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Micro Header Label with Count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🚀 APPS",
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF00E5FF),
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = "${shortcuts.size}",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF80DEEA)
+                )
+            }
+
+            // 2-Column Grid in Serial Order
+            shortcuts.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    CompactAppGridButton(
+                        shortcut = pair[0],
+                        modifier = Modifier.weight(1f),
+                        onClick = { OverlayStateManager.launchAppShortcut(context, pair[0]) },
+                        onLongClick = { OverlayStateManager.closeAppShortcut(context, pair[0]) }
+                    )
+                    if (pair.size > 1) {
+                        CompactAppGridButton(
+                            shortcut = pair[1],
+                            modifier = Modifier.weight(1f),
+                            onClick = { OverlayStateManager.launchAppShortcut(context, pair[1]) },
+                            onLongClick = { OverlayStateManager.closeAppShortcut(context, pair[1]) }
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 2-Column Serial Grid Box for Selected Clear Data Apps (Lite, Lite 96, Lite F, etc.)
+ * Displays clean apps in a sleek crimson-amber bordered box with 2 columns, preventing vertical overflow.
+ */
+@Composable
+fun ClearDataGridBox(
+    apps: List<com.example.util.AppInfoItem>,
+    brush: Brush,
+    context: android.content.Context,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xE6240A10), Color(0xF2330F19))
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFFFF5252).copy(alpha = 0.75f),
+                        Color(0xFFC2185B).copy(alpha = 0.35f)
+                    )
+                ),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .testTag("clear_data_grid_box")
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Micro Header Label with Count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🧹 CLEAN",
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFFFF5252),
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = "${apps.size}",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF8A80)
+                )
+            }
+
+            // 2-Column Grid in Serial Order
+            apps.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    CompactCleanGridButton(
+                        appItem = pair[0],
+                        brush = brush,
+                        modifier = Modifier.weight(1f),
+                        onClick = { OverlayStateManager.executeClearDataForApp(context, pair[0]) }
+                    )
+                    if (pair.size > 1) {
+                        CompactCleanGridButton(
+                            appItem = pair[1],
+                            brush = brush,
+                            modifier = Modifier.weight(1f),
+                            onClick = { OverlayStateManager.executeClearDataForApp(context, pair[1]) }
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Compact Tactile Button for 2-column App shortcut grid.
+ * Tap = Open App, Long press = Zero-touch force close!
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun CompactAppGridButton(
+    shortcut: com.example.service.CustomAppShortcut,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val baseColor = try {
+        Color(android.graphics.Color.parseColor(shortcut.colorHex))
+    } catch (_: Exception) {
+        Color(0xFF00ACC1)
+    }
+    val brush = Brush.verticalGradient(
+        listOf(
+            baseColor.copy(alpha = 0.95f),
+            baseColor,
+            Color(0xFF0D1B2A)
+        )
+    )
+    val shape = RoundedCornerShape(6.dp)
+
+    Box(
+        modifier = modifier
+            .height(31.dp)
+            .shadow(3.dp, shape = shape)
+            .clip(shape)
+            .background(brush)
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.6f),
+                        Color.White.copy(alpha = 0.15f)
+                    )
+                ),
+                shape
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .testTag("tab_custom_${shortcut.appName}")
+    ) {
+        // Specular top highlight
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(13.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)
+                    )
+                )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = shortcut.appName.take(7),
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 10.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * Compact Tactile Button for 2-column Clean App grid.
+ * Tap = Zero-touch clear data & auto close!
+ */
+@Composable
+fun CompactCleanGridButton(
+    appItem: com.example.util.AppInfoItem,
+    brush: Brush,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(6.dp)
+
+    Box(
+        modifier = modifier
+            .height(31.dp)
+            .shadow(3.dp, shape = shape)
+            .clip(shape)
+            .background(brush)
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.6f),
+                        Color.White.copy(alpha = 0.15f)
+                    )
+                ),
+                shape
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .testTag("tab_app_clean_${appItem.packageName}")
+    ) {
+        // Specular top highlight
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(13.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)
+                    )
+                )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "🧹",
+                fontSize = 9.sp
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            Text(
+                text = appItem.appName.take(7),
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+

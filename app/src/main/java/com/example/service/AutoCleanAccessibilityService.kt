@@ -13,10 +13,14 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 /**
- * High-Speed Accessibility Service for:
- * 1. Zero-Touch Clear Data & Auto-Close
- * 2. Instant Zero-Touch Auto Force-Close (on app long-press)
- * Zero user taps required!
+ * Ultra High-Speed Accessibility Service for:
+ * 1. Facebook Lite / Lite 96 / Lite F internal storage clear automation:
+ *    - Auto-selects ALL checkboxes including "Accounts and settings" & "Clear All"
+ *    - Auto-clicks "CLEAR"
+ *    - Auto-confirms "OK"
+ *    - Auto-closes app & settings completely
+ * 2. Standard Android app zero-touch Clear Data & Auto-Close
+ * 3. Instant Zero-Touch Auto Force-Close (on app long-press)
  */
 class AutoCleanAccessibilityService : AccessibilityService() {
 
@@ -43,6 +47,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
         private var lastActionTime: Long = 0L
         private var clickedClearCache: Boolean = false
         private var clickedClearData: Boolean = false
+        private var handledLiteCheckboxes: Boolean = false
 
         fun isServiceRunning(): Boolean = instance != null
 
@@ -57,6 +62,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
             step = 0
             clickedClearCache = false
             clickedClearData = false
+            handledLiteCheckboxes = false
             lastActionTime = System.currentTimeMillis()
 
             if (instance == null) {
@@ -156,14 +162,34 @@ class AutoCleanAccessibilityService : AccessibilityService() {
         val rootNode = rootInActiveWindow ?: return
         val pkg = (event?.packageName?.toString() ?: "").lowercase()
 
-        // Handle settings or system dialogs
-        if (pkg.contains("settings") || pkg.contains("packageinstaller") || pkg.contains("systemui") || pkg.isEmpty()) {
+        val isTargetPkg = pkg.contains(currentTarget.lowercase())
+        val isLite = pkg.contains("lite") || pkg.contains("facebook")
+        val isSettings = pkg.contains("settings") || pkg.contains("packageinstaller") || pkg.contains("systemui") || pkg.isEmpty()
+
+        if (isSettings || isLite || isTargetPkg || isLiteStorageScreen(rootNode)) {
             if (currentMode == MODE_FORCE_CLOSE) {
                 handleForceCloseStep(rootNode)
             } else {
                 handleAutoCleanStep(rootNode)
             }
         }
+    }
+
+    /**
+     * Checks if current screen is the Facebook Lite / Lite 96 / Lite F internal storage screen
+     * "Clear Storage on Your Phone"
+     */
+    private fun isLiteStorageScreen(rootNode: AccessibilityNodeInfo): Boolean {
+        val keywords = listOf(
+            "facebook lite storage",
+            "clear storage on your phone",
+            "accounts and settings",
+            "accounts and setting",
+            "photo cache",
+            "video cache",
+            "other cache"
+        )
+        return findNodeByKeywords(rootNode, keywords) != null
     }
 
     /**
@@ -174,7 +200,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
      */
     private fun handleForceCloseStep(rootNode: AccessibilityNodeInfo) {
         val now = System.currentTimeMillis()
-        if (now - lastActionTime < 250) return
+        if (now - lastActionTime < 200) return
 
         if (step == 0) {
             val forceStopBtn = findNodeByKeywords(
@@ -199,14 +225,12 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                 lastActionTime = now
                 return
             } else {
-                // If force stop button is already disabled, app is already stopped!
                 finishAndCloseSettings("Already closed! ✓")
                 return
             }
         }
 
         if (step == 1) {
-            // Confirm dialog
             val confirmBtn = findNodeByKeywords(
                 rootNode,
                 listOf("ok", "force stop", "ঠিক আছে", "yes", "confirm", "থামান"),
@@ -220,7 +244,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                 finishAndCloseSettings("$targetAppName Force Closed! ✓")
                 return
             } else {
-                if (now - lastActionTime > 500) {
+                if (now - lastActionTime > 400) {
                     finishAndCloseSettings("$targetAppName Force Closed! ✓")
                 }
             }
@@ -229,7 +253,13 @@ class AutoCleanAccessibilityService : AccessibilityService() {
 
     private fun handleAutoCleanStep(rootNode: AccessibilityNodeInfo) {
         val now = System.currentTimeMillis()
-        if (now - lastActionTime < 300) return
+        if (now - lastActionTime < 250) return
+
+        // SPECIAL CASE: Facebook Lite / Lite 96 / Lite F internal storage screen
+        if (isLiteStorageScreen(rootNode)) {
+            handleLiteStorageScreenFlow(rootNode)
+            return
+        }
 
         // Step 0: In App Details screen, find and click "Storage"
         if (step == 0) {
@@ -259,7 +289,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Step 1: In Storage screen, click "Clear cache" and then "Clear data"
+        // Step 1: In Storage screen, click "Clear cache" and then "Clear data" / "Manage space"
         if (step in 1..2) {
             if (!clickedClearCache) {
                 val clearCacheNode = findNodeByKeywords(
@@ -278,8 +308,9 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                 listOf(
                     "clear data",
                     "clear storage",
-                    "delete data",
+                    "manage space",
                     "manage storage",
+                    "delete data",
                     "ডেটা মুছুন",
                     "ডাটা মুছুন",
                     "স্টোরেজ মুছুন"
@@ -326,10 +357,112 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                 autoCloseCleanedSequence()
                 return
             } else {
-                if (now - lastActionTime > 600) {
+                if (now - lastActionTime > 500) {
                     step = 4
                     autoCloseCleanedSequence()
                 }
+            }
+        }
+    }
+
+    /**
+     * Dedicated Handler for Facebook Lite, Lite 96, Lite F "Clear Storage on Your Phone"
+     * 1. Checks all checkboxes: "Clear All", "Photo cache", "Video cache", "Other cache",
+     *    and ESPECIALLY "Accounts and settings"!
+     * 2. Clicks the "CLEAR" button.
+     * 3. Confirms "OK" on dialog.
+     * 4. Auto-closes the app completely!
+     */
+    private fun handleLiteStorageScreenFlow(rootNode: AccessibilityNodeInfo) {
+        val now = System.currentTimeMillis()
+        lastActionTime = now
+
+        // Check all checkboxes in the view hierarchy
+        selectAllLiteCheckboxes(rootNode)
+
+        // Find and click the "CLEAR" action button
+        val clearBtn = findNodeByKeywords(
+            rootNode,
+            listOf("clear", "মুছুন"),
+            resourceIds = listOf("clear_button", "button")
+        )
+
+        if (clearBtn != null && clearBtn.isEnabled) {
+            clickNode(clearBtn)
+            step = 3
+            // Give brief delay then handle confirm or auto-close
+            mainHandler.postDelayed({
+                rootInActiveWindow?.let { currentRoot ->
+                    val okBtn = findNodeByKeywords(
+                        currentRoot,
+                        listOf("ok", "confirm", "clear", "ঠিক আছে", "হ্যাঁ", "yes", "delete"),
+                        resourceIds = listOf("android:id/button1")
+                    )
+                    if (okBtn != null && okBtn.isEnabled) {
+                        clickNode(okBtn)
+                    }
+                }
+                autoCloseCleanedSequence()
+            }, 350)
+        } else {
+            // Also check for OK dialog if already clicked
+            val okBtn = findNodeByKeywords(
+                rootNode,
+                listOf("ok", "confirm", "clear", "ঠিক আছে", "হ্যাঁ", "yes", "delete"),
+                resourceIds = listOf("android:id/button1")
+            )
+            if (okBtn != null && okBtn.isEnabled) {
+                clickNode(okBtn)
+                autoCloseCleanedSequence()
+            }
+        }
+    }
+
+    /**
+     * Finds and checks all checkboxes, specifically ensuring "Accounts and settings" is checked!
+     */
+    private fun selectAllLiteCheckboxes(root: AccessibilityNodeInfo) {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+
+            // If checkable, ensure it is checked
+            if (node.isCheckable && !node.isChecked) {
+                clickNode(node)
+            }
+
+            val text = (node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: "")
+            val lowerText = text.lowercase()
+
+            // Explicit check for "Accounts and settings" / "Clear All"
+            if (lowerText.contains("accounts and setting") ||
+                lowerText.contains("accounts and settings") ||
+                lowerText.contains("clear all")) {
+
+                if (node.isCheckable && !node.isChecked) {
+                    clickNode(node)
+                }
+
+                // If checkbox is a sibling or child in parent row
+                node.parent?.let { parent ->
+                    if (parent.isCheckable && !parent.isChecked) {
+                        clickNode(parent)
+                    } else if (parent.isClickable) {
+                        clickNode(parent)
+                    }
+                    for (c in 0 until parent.childCount) {
+                        val sibling = parent.getChild(c)
+                        if (sibling != null && sibling.isCheckable && !sibling.isChecked) {
+                            clickNode(sibling)
+                        }
+                    }
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
             }
         }
     }
@@ -340,7 +473,6 @@ class AutoCleanAccessibilityService : AccessibilityService() {
     private fun autoCloseCleanedSequence() {
         val pkgToKill = targetPackage
         mainHandler.postDelayed({
-            // First Back: exit Storage screen
             performGlobalAction(GLOBAL_ACTION_BACK)
             mainHandler.postDelayed({
                 // In App Info screen, attempt to Force Stop the app as well
@@ -353,10 +485,9 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                     }
                 } catch (_: Exception) {}
 
-                // Second Back / Home: exit completely back to desktop/user's workspace
                 performGlobalAction(GLOBAL_ACTION_BACK)
                 mainHandler.postDelayed({
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    performGlobalAction(GLOBAL_ACTION_HOME)
                     pkgToKill?.let { pkg ->
                         try {
                             val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -368,9 +499,9 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                     isAutomating = false
                     targetPackage = null
                     step = 0
-                }, 250)
-            }, 250)
-        }, 300)
+                }, 180)
+            }, 180)
+        }, 220)
     }
 
     private fun finishAndCloseSettings(message: String) {
@@ -378,7 +509,7 @@ class AutoCleanAccessibilityService : AccessibilityService() {
         mainHandler.postDelayed({
             performGlobalAction(GLOBAL_ACTION_BACK)
             mainHandler.postDelayed({
-                performGlobalAction(GLOBAL_ACTION_BACK)
+                performGlobalAction(GLOBAL_ACTION_HOME)
                 pkgToKill?.let { pkg ->
                     try {
                         val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -390,8 +521,8 @@ class AutoCleanAccessibilityService : AccessibilityService() {
                 isAutomating = false
                 targetPackage = null
                 step = 0
-            }, 180)
-        }, 180)
+            }, 150)
+        }, 150)
     }
 
     private fun findNodeByKeywords(
@@ -430,12 +561,12 @@ class AutoCleanAccessibilityService : AccessibilityService() {
     }
 
     private fun clickNode(node: AccessibilityNodeInfo): Boolean {
-        var current: AccessibilityNodeInfo? = node
-        while (current != null) {
-            if (current.isClickable) {
-                return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        var curr: AccessibilityNodeInfo? = node
+        while (curr != null) {
+            if (curr.isClickable) {
+                return curr.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             }
-            current = current.parent
+            curr = curr.parent
         }
         return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }

@@ -14,8 +14,8 @@ import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 
 /**
- * Super Proxy style VpnService that provides Per-App proxy routing
- * using Android's native addAllowedApplication API.
+ * Super Proxy style VpnService that provides real-time proxy routing tunnel
+ * with optional per-app routing via Android's native addAllowedApplication API.
  */
 class SuperProxyVpnService : VpnService() {
 
@@ -44,25 +44,24 @@ class SuperProxyVpnService : VpnService() {
             vpnInterface?.close()
 
             val builder = Builder()
-                .setSession(profileName)
+                .setSession("SuperProxy: $profileName")
                 .addAddress("10.8.0.2", 24)
                 .addRoute("0.0.0.0", 0)
+                .addDnsServer("8.8.8.8")
+                .addDnsServer("1.1.1.1")
+                .setMtu(1500)
 
             // Super Proxy style: Route ONLY the selected apps if specified
             if (allowedApps.isNotEmpty()) {
-                var addedCount = 0
                 for (pkg in allowedApps) {
                     try {
                         builder.addAllowedApplication(pkg)
-                        addedCount++
-                    } catch (_: Exception) {
-                    }
+                    } catch (_: Exception) {}
                 }
             }
 
             vpnInterface = builder.establish()
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
     }
 
     private fun startForegroundNotification(profileName: String, server: String, port: Int) {
@@ -93,8 +92,8 @@ class SuperProxyVpnService : VpnService() {
         )
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Proxy Connected: $profileName")
-            .setContentText("$server:$port • Per-app routing active")
+            .setContentTitle("Super Proxy Active: $profileName")
+            .setContentText("Connected to $server:$port • Traffic Routed")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -109,8 +108,7 @@ class SuperProxyVpnService : VpnService() {
         } catch (_: Exception) {
             try {
                 startForeground(102, notification)
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -118,8 +116,7 @@ class SuperProxyVpnService : VpnService() {
         try {
             vpnInterface?.close()
             vpnInterface = null
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -151,8 +148,7 @@ class SuperProxyVpnService : VpnService() {
                 } else {
                     context.startService(intent)
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
 
         fun stop(context: Context) {
@@ -161,8 +157,7 @@ class SuperProxyVpnService : VpnService() {
                     action = ACTION_STOP
                 }
                 context.startService(intent)
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
     }
 }

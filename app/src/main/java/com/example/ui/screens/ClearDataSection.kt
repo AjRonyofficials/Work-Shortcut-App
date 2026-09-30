@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -349,17 +350,22 @@ fun ClearDataSection(
         }
 
         // Installed Apps List
-        items(filteredApps) { app ->
+        items(filteredApps, key = { it.packageName }) { app ->
             val isChecked = selectedPackages.contains(app.packageName)
             Surface(
                 onClick = {
                     OverlayStateManager.toggleClearDataApp(app, !isChecked)
+                    if (!isChecked) {
+                        Toast.makeText(context, "${app.appName} added to Floating Overlay Clean Tab! ✓", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "${app.appName} removed from Clean Tab", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 shape = RoundedCornerShape(10.dp),
-                color = if (isChecked) BrandRose.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                color = if (isChecked) BrandRose.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (isChecked) BrandRose.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    if (isChecked) BrandRose.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -375,9 +381,10 @@ fun ClearDataSection(
                             fontSize = 13.sp
                         )
                         Text(
-                            text = app.packageName,
+                            text = if (isChecked) "Live on Overlay Clean Tab ✓ • ${app.packageName}" else app.packageName,
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isChecked) BrandRose else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Normal
                         )
                     }
 
@@ -385,6 +392,11 @@ fun ClearDataSection(
                         checked = isChecked,
                         onCheckedChange = { checked ->
                             OverlayStateManager.toggleClearDataApp(app, checked)
+                            if (checked) {
+                                Toast.makeText(context, "${app.appName} added to Floating Overlay Clean Tab! ✓", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "${app.appName} removed from Clean Tab", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         colors = CheckboxDefaults.colors(checkedColor = BrandRose)
                     )

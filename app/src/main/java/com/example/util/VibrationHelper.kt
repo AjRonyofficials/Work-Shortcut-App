@@ -41,6 +41,10 @@ object VibrationHelper {
         vibrateClick(context)
     }
 
+    fun vibrateTactileClick(context: Context) {
+        vibrateClick(context)
+    }
+
     fun vibrateClick(context: Context) {
         try {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

@@ -256,7 +256,7 @@ fun TwoFactorSection(
                             value = inputKey,
                             onValueChange = { newKey ->
                                 inputKey = newKey
-                                OverlayStateManager.setTwoFactorKey(newKey, autoGenerateAndCopy = context)
+                                OverlayStateManager.setTwoFactorKey(newKey)
                             },
                             placeholder = { Text("e.g. JBSWY3DPEHPK3PXP") },
                             modifier = Modifier
@@ -269,7 +269,13 @@ fun TwoFactorSection(
                         // Paste from clipboard button
                         Button(
                             onClick = {
-                                OverlayStateManager.triggerOverlay2FaPaste(context)
+                                val clip = ClipboardHelper.getFromClipboard(context)?.trim()
+                                if (!clip.isNullOrEmpty()) {
+                                    inputKey = clip
+                                    OverlayStateManager.processGet2FaWithText(context, clip)
+                                } else {
+                                    OverlayStateManager.triggerOverlay2FaPaste(context)
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier

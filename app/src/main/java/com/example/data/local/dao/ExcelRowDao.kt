@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExcelRowDao {
-    @Query("SELECT * FROM excel_rows ORDER BY id DESC")
+    @Query("SELECT * FROM excel_rows ORDER BY id ASC")
     fun getAllRows(): Flow<List<ExcelRowEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
