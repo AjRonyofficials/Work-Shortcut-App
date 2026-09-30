@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
@@ -123,6 +124,41 @@ fun TwoFactorSection(
                         }
                     }
                 }
+            }
+        }
+
+        // ⚡ 1-Tap Paste 2FA Key & Auto-Copy 6-Digit Code Button
+        item {
+            Button(
+                onClick = {
+                    val clip = ClipboardHelper.getFromClipboard(context)?.trim()
+                    if (!clip.isNullOrEmpty()) {
+                        inputKey = clip
+                        OverlayStateManager.processGet2FaWithText(context, clip)
+                    } else {
+                        OverlayStateManager.triggerOverlay2FaPaste(context)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .testTag("one_tap_paste_2fa_key_and_copy_button"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandAmber)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "⚡ PASTE KEY & GET 6-DIGIT CODE",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp,
+                    color = Color.Black
+                )
             }
         }
 

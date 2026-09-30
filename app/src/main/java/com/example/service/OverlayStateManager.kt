@@ -703,33 +703,49 @@ object OverlayStateManager {
     }
 
     fun processGet2FaWithText(context: Context, rawClipboardText: String) {
-        val targetKey = if (rawClipboardText.isNotBlank()) {
-            val rawKey = if (rawClipboardText.contains("secret=", ignoreCase = true)) {
-                rawClipboardText.substringAfter("secret=").substringBefore("&").trim()
-            } else {
-                rawClipboardText
+        var rawKey = rawClipboardText.trim()
+        if (rawKey.contains("secret=", ignoreCase = true)) {
+            rawKey = rawKey.substringAfter("secret=").substringBefore("&").trim()
+        }
+        // Strip common prefixes like Key:, Secret:, 2FA:, etc.
+        listOf("key:", "secret:", "2fa:", "code:", "totp:").forEach { prefix ->
+            if (rawKey.startsWith(prefix, ignoreCase = true)) {
+                rawKey = rawKey.substring(prefix.length).trim()
             }
-            rawKey.replace(" ", "").replace("-", "").uppercase()
+        }
+        val cleanKey = rawKey.replace(" ", "").replace("-", "").replace("=", "").uppercase()
+        val targetKey = if (cleanKey.length >= 8) {
+            cleanKey
         } else {
             _uiState.value.twoFactorKey
         }
 
-        if (targetKey.isNotEmpty()) {
-            _uiState.update { it.copy(twoFactorKey = targetKey) }
-            prefs?.edit()?.putString("saved_2fa_key", targetKey)?.apply()
+        if (targetKey.isEmpty()) {
+            Toast.makeText(context, "📋 Keyboard-এ 2FA Key কপি করা নেই! আগে কী কপি করুন।", Toast.LENGTH_SHORT).show()
+            return
         }
 
         val totp = TotpHelper.generateTotp(targetKey)
         if (totp != null) {
-            _uiState.update { it.copy(totpResult = totp) }
+            if (targetKey != _uiState.value.twoFactorKey) {
+                _uiState.update { it.copy(twoFactorKey = targetKey, totpResult = totp) }
+                prefs?.edit()?.putString("saved_2fa_key", targetKey)?.apply()
+            } else {
+                _uiState.update { it.copy(totpResult = totp) }
+            }
+
+            // AUTO-COPY 6-DIGIT CODE TO USER'S KEYBOARD CLIPBOARD!
             com.example.util.ClipboardHelper.copyToClipboard(
                 context = context,
                 text = totp.code,
                 label = "2FA Code",
-                toastMessage = "2FA Code [${totp.code}] copied to keyboard!"
+                toastMessage = "✅ 6-digit 2FA Code [${totp.code}] auto-copied to keyboard!"
             )
+            if (_uiState.value.vibrationEnabled) {
+                com.example.util.VibrationHelper.vibrateTactileClick(context)
+            }
         } else {
-            Toast.makeText(context, "Invalid 2FA secret key in clipboard!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "⚠️ Invalid 2FA secret key in keyboard!", Toast.LENGTH_SHORT).show()
         }
     }
 

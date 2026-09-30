@@ -14,28 +14,55 @@ import com.example.service.OverlayStateManager
  */
 class ClipboardReaderActivity : Activity() {
 
+    private var hasExecuted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val target = intent.getStringExtra(EXTRA_TARGET) ?: "A"
+        if (hasWindowFocus()) {
+            executeRead()
+        }
+    }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !hasExecuted) {
+            executeRead()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!hasExecuted) {
+            window?.decorView?.post {
+                if (!hasExecuted) {
+                    executeRead()
+                }
+            }
+        }
+    }
+
+    private fun executeRead() {
+        if (hasExecuted) return
+        hasExecuted = true
+        val target = intent.getStringExtra(EXTRA_TARGET) ?: "A"
         try {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
 
             if (clipText.isEmpty()) {
-                Toast.makeText(this, "Clipboard is empty! Copy text first.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, "Clipboard is empty! Copy text first.", Toast.LENGTH_SHORT).show()
             } else {
                 when (target) {
                     "2FA" -> {
-                        OverlayStateManager.processGet2FaWithText(this, clipText)
+                        OverlayStateManager.processGet2FaWithText(applicationContext, clipText)
                     }
                     else -> {
-                        OverlayStateManager.pasteToColumnDirect(this, target, clipText)
+                        OverlayStateManager.pasteToColumnDirect(applicationContext, target, clipText)
                     }
                 }
             }
         } catch (e: Exception) {
-            Toast.makeText(this, "Paste failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(applicationContext, "Paste failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
 
         finish()
