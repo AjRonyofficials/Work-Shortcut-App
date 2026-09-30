@@ -78,7 +78,7 @@ import com.example.ui.theme.BrandTeal
 import com.example.util.ClipboardHelper
 import com.example.util.NameGenerator
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun FloatingOverlayWindowContent(
     state: OverlayUiState,
@@ -221,7 +221,7 @@ fun FloatingOverlayWindowContent(
 
                     Surface(
                         onClick = {
-                            OverlayStateManager.generateAndCopyName(context)
+                            OverlayStateManager.generateAndCopyRealtimeName(context)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -253,9 +253,9 @@ fun FloatingOverlayWindowContent(
                                     )
                                     Text(
                                         text = if (state.lastGeneratedName.isNotEmpty())
-                                            state.lastGeneratedName
+                                            "${state.lastGeneratedName} (Auto-Copied)"
                                         else
-                                            "Tap to generate & copy name",
+                                            "Auto generates & copies to keyboard",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1
@@ -381,20 +381,6 @@ fun FloatingOverlayWindowContent(
                                 val isFilled = colVal.isNotEmpty()
 
                                 Surface(
-                                    onClick = {
-                                        // Paste from clipboard into this column
-                                        val clipText = ClipboardHelper.getFromClipboard(context)
-                                        if (!clipText.isNullOrEmpty()) {
-                                            OverlayStateManager.pasteToColumn(context, colKey, clipText)
-                                        } else {
-                                            ClipboardHelper.copyToClipboard(
-                                                context,
-                                                colVal,
-                                                "Col $colKey",
-                                                if (isFilled) "Copied Col $colKey" else "Clipboard is empty"
-                                            )
-                                        }
-                                    },
                                     shape = RoundedCornerShape(8.dp),
                                     color = when {
                                         isDupe -> AlertRed.copy(alpha = 0.25f)
@@ -409,7 +395,26 @@ fun FloatingOverlayWindowContent(
                                             else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                                         }
                                     ),
-                                    modifier = Modifier.testTag("overlay_col_${colKey}")
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .combinedClickable(
+                                            onClick = {
+                                                // Tap: Auto-paste whatever is on user keyboard/clipboard into this column
+                                                OverlayStateManager.autoPasteClipboardToColumn(context, colKey)
+                                            },
+                                            onLongClick = {
+                                                // Long-press: Copy column value to clipboard
+                                                if (isFilled) {
+                                                    ClipboardHelper.copyToClipboard(
+                                                        context,
+                                                        colVal,
+                                                        "Col $colKey",
+                                                        "Copied Col $colKey: $colVal"
+                                                    )
+                                                }
+                                            }
+                                        )
+                                        .testTag("overlay_col_${colKey}")
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
@@ -462,12 +467,12 @@ fun FloatingOverlayWindowContent(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // ==========================================
-                    // 3. THIRD SECTION: 2FA Generator
+                    // 3. THIRD SECTION: Get 2FA (Auto pastes copied key & copies 6-digit code)
                     // ==========================================
                     val totp = state.totpResult
                     Surface(
                         onClick = {
-                            OverlayStateManager.copyCurrentTotpCode(context)
+                            OverlayStateManager.processGet2FaFromClipboard(context)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -493,14 +498,22 @@ fun FloatingOverlayWindowContent(
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Get 2FA",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandAmber
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "(Auto-paste & Copy)",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     Text(
-                                        text = "2FA Code",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandAmber
-                                    )
-                                    Text(
-                                        text = totp?.formattedCode ?: "Tap to copy code",
+                                        text = totp?.formattedCode ?: "Tap to Get 2FA Code",
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
@@ -518,8 +531,8 @@ fun FloatingOverlayWindowContent(
                                 )
                             } else {
                                 Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy 2FA",
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Get 2FA",
                                     tint = BrandAmber,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -530,11 +543,10 @@ fun FloatingOverlayWindowContent(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // ==========================================
-                    // 4. FOURTH SECTION: Super Proxy [Country] (Fast 1-click connect/disconnect)
+                    // 4. FOURTH SECTION: Super Proxy [Country] (Fast 1-click connect/disconnect, No Clipboard Copy)
                     // ==========================================
                     val proxy = state.proxyState
                     val displayIp = if (proxy.ipAddress.isNotEmpty()) proxy.ipAddress else proxy.host
-                    val proxyLabel = "Proxy ${proxy.countryCode} [$displayIp]"
 
                     Surface(
                         onClick = {
@@ -571,17 +583,13 @@ fun FloatingOverlayWindowContent(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = proxyLabel,
+                                        text = "Proxy ${proxy.countryCode} [${if (proxy.isConnected) "Connected" else "Off"}]",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (proxy.isConnected) BrandGreen else MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1
+                                        color = if (proxy.isConnected) BrandGreen else MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (proxy.isConnected)
-                                            "${proxy.protocol}://${displayIp}:${proxy.port} • ${proxy.pingMs}ms"
-                                        else
-                                            "IP: $displayIp:${proxy.port} • Tap to connect",
+                                        text = "Country: ${proxy.countryCode} • Time: ${proxy.pingMs}ms • IP: $displayIp",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 11.sp,
@@ -647,7 +655,7 @@ fun FloatingOverlayWindowContent(
                                             color = BrandRose
                                         )
                                         Text(
-                                            text = "Tap to open apps & clear cache",
+                                            text = "Zero-Touch: Tap app to auto clear & close",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 11.sp

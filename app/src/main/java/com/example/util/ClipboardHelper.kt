@@ -41,4 +41,6 @@ object ClipboardHelper {
             null
         }
     }
+
+    fun pasteFromClipboard(context: Context): String? = getFromClipboard(context)
 }

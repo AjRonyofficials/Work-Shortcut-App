@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Work Shortcut</string>
+    <string name="accessibility_service_description">Automatically cleans app data and cache when selected in Work Shortcut.</string>
 </resources>

@@ -2,6 +2,7 @@ package com.example.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
 import com.example.util.Gender
 import com.example.util.NameGenerator
 import com.example.util.ProxyTester
@@ -273,6 +274,18 @@ object OverlayStateManager {
         return name
     }
 
+    fun generateAndCopyRealtimeName(context: Context): String = generateAndCopyName(context)
+
+    fun autoPasteClipboardToColumn(context: Context, columnKey: String) {
+        val clipText = com.example.util.ClipboardHelper.pasteFromClipboard(context)?.trim() ?: ""
+        if (clipText.isNotEmpty()) {
+            pasteToColumn(context, columnKey, clipText)
+            Toast.makeText(context, "Pasted to Col $columnKey: $clipText", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Clipboard is empty! Copy text first.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /**
      * Feature 2: Paste text into column with duplicate detection & vibration
      */
@@ -423,6 +436,38 @@ object OverlayStateManager {
         }
     }
 
+    fun processGet2FaFromClipboard(context: Context) {
+        val clipboardText = com.example.util.ClipboardHelper.pasteFromClipboard(context)?.trim() ?: ""
+        val targetKey = if (clipboardText.isNotBlank()) {
+            val rawKey = if (clipboardText.contains("secret=", ignoreCase = true)) {
+                clipboardText.substringAfter("secret=").substringBefore("&").trim()
+            } else {
+                clipboardText
+            }
+            rawKey.replace(" ", "").replace("-", "").uppercase()
+        } else {
+            _uiState.value.twoFactorKey
+        }
+
+        if (targetKey.isNotEmpty()) {
+            _uiState.update { it.copy(twoFactorKey = targetKey) }
+            prefs?.edit()?.putString("saved_2fa_key", targetKey)?.apply()
+        }
+
+        val totp = TotpHelper.generateTotp(targetKey)
+        if (totp != null) {
+            _uiState.update { it.copy(totpResult = totp) }
+            com.example.util.ClipboardHelper.copyToClipboard(
+                context = context,
+                text = totp.code,
+                label = "2FA Code",
+                toastMessage = "2FA Code [${totp.code}] copied to keyboard!"
+            )
+        } else {
+            Toast.makeText(context, "Invalid 2FA secret key in clipboard!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun updateTotpCode() {
         val key = _uiState.value.twoFactorKey
         val result = TotpHelper.generateTotp(key)
@@ -441,6 +486,7 @@ object OverlayStateManager {
 
     /**
      * Feature 4: Super Proxy Configuration & Quick Switcher
+     * Note: Proxy section does NOT copy anything to clipboard
      */
     fun updateProxyConfig(
         host: String,
@@ -472,7 +518,7 @@ object OverlayStateManager {
     fun toggleProxyConnection(context: Context? = null) {
         val current = _uiState.value.proxyState
         if (current.isConnected) {
-            // Disconnect
+            // Disconnect (No clipboard copying)
             _uiState.update {
                 it.copy(
                     proxyState = it.proxyState.copy(
@@ -482,15 +528,10 @@ object OverlayStateManager {
                 )
             }
             context?.let {
-                com.example.util.ClipboardHelper.copyToClipboard(
-                    it,
-                    "",
-                    "Proxy",
-                    "Proxy disconnected"
-                )
+                Toast.makeText(it, "Proxy disconnected", Toast.LENGTH_SHORT).show()
             }
         } else {
-            // Connect
+            // Connect (No clipboard copying)
             testAndConnectProxy(context)
         }
     }
@@ -525,15 +566,9 @@ object OverlayStateManager {
                     )
                 }
                 context?.let {
-                    com.example.util.ClipboardHelper.copyToClipboard(
-                        it,
-                        effectiveIp,
-                        "Proxy IP",
-                        "Proxy connected! IP: $effectiveIp (${proxy.countryCode} • ${result.latencyMs}ms)"
-                    )
+                    Toast.makeText(it, "Proxy connected: $effectiveIp (${result.latencyMs}ms)", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                // If ping fails on direct local/mock, we still allow fast simulation connection if desired
                 _uiState.update {
                     it.copy(
                         proxyState = it.proxyState.copy(
@@ -546,12 +581,7 @@ object OverlayStateManager {
                     )
                 }
                 context?.let {
-                    com.example.util.ClipboardHelper.copyToClipboard(
-                        it,
-                        effectiveIp,
-                        "Proxy IP",
-                        "Proxy connected! IP: $effectiveIp (${proxy.countryCode})"
-                    )
+                    Toast.makeText(it, "Proxy connected: $effectiveIp", Toast.LENGTH_SHORT).show()
                 }
             }
         }

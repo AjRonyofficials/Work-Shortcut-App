@@ -40,20 +40,10 @@ object AppManagerHelper {
     }
 
     /**
-     * Opens the direct System App Info Storage settings for the targeted package
-     * so user can 1-tap "Clear Storage / Clear Cache"
+     * Triggers zero-touch automated clearing of data and cache via AccessibilityService
      */
     fun openAppDetailsForClearData(context: Context, packageName: String, appName: String = "App") {
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            Toast.makeText(context, "Opening $appName: Tap Storage -> Clear Data", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(context, "Unable to open app settings: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        com.example.service.AutoCleanAccessibilityService.startAutoClean(context, packageName, appName)
     }
 
     /**

@@ -145,33 +145,67 @@ fun ClearDataSection(
 
         // Floating Overlay Notice Card
         item {
+            val isAccRunning = com.example.service.AutoCleanAccessibilityService.isServiceRunning()
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = BrandRose.copy(alpha = 0.08f)
+                    containerColor = if (isAccRunning) BrandTeal.copy(alpha = 0.08f) else BrandRose.copy(alpha = 0.08f)
                 ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BrandRose.copy(alpha = 0.35f))
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isAccRunning) BrandTeal.copy(alpha = 0.4f) else BrandRose.copy(alpha = 0.35f)
+                )
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = BrandRose,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Floating Overlay Clear Data Feature",
-                            fontWeight = FontWeight.Bold,
-                            color = BrandRose,
-                            fontSize = 13.sp
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (isAccRunning) Icons.Default.Info else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (isAccRunning) BrandTeal else BrandRose,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isAccRunning) "Zero-Touch Cleaner: Active ✓" else "Zero-Touch Cleaner: Needs Permission",
+                                fontWeight = FontWeight.Bold,
+                                color = if (isAccRunning) BrandTeal else BrandRose,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        if (!isAccRunning) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Enable", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "In the floating overlay bubble, tap or long-press 'Clear Data' to instantly open your selected apps list. Tapping any app opens its Storage settings to clear data and cache in 1 click!",
+                        text = if (isAccRunning)
+                            "Zero Cleaner automation is ON. When you tap any app in the floating bubble, it will automatically open Storage, clear data & cache, confirm OK, and close automatically!"
+                        else
+                            "Tap 'Enable' and turn ON 'Work Shortcut' in Accessibility so the app can automatically clear data and cache without you having to press any buttons!",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
